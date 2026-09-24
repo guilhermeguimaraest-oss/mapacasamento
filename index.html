@@ -6,6 +6,8 @@
     <title>Mapa de Assentos - Casamento</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Biblioteca html2canvas para exportar em PNG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
@@ -42,12 +44,20 @@
             </div>
         </div>
         <div class="flex items-center space-x-3">
-            <button onclick="openGuestModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2">
+            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2" title="Baixar lista em CSV">
+                <i class="fa-solid fa-file-csv"></i>
+                <span>Exportar CSV</span>
+            </button>
+            <button onclick="exportToPNG()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2" title="Salvar imagem do mapa">
+                <i class="fa-solid fa-image"></i>
+                <span>Exportar PNG</span>
+            </button>
+            <button onclick="openGuestModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2">
                 <i class="fa-solid fa-user-plus"></i>
-                <span>Adicionar Convidado</span>
+                <span>Adicionar</span>
             </button>
             <button onclick="resetAllData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-sm font-medium transition border border-slate-700" title="Restaurar lista original">
-                <i class="fa-solid fa-rotate-right mr-1"></i> Restaurar Lista
+                <i class="fa-solid fa-rotate-right"></i>
             </button>
         </div>
     </header>
@@ -110,11 +120,10 @@
                 </div>
             </div>
 
-            <!-- Canvas da Mesa Imperial com largura ampla -->
+            <!-- Canvas da Mesa Imperial com ID para o PNG -->
             <div class="p-12 flex-1 flex items-center justify-center min-w-[3400px]">
                 
-                <!-- Container Principal da Mesa -->
-                <div class="relative flex flex-col items-center my-auto w-full max-w-[1700px]">
+                <div id="capture-area" class="bg-slate-100 p-8 rounded-3xl relative flex flex-col items-center my-auto w-full max-w-[1700px]">
                     
                     <!-- Lado Superior da Mesa (27 assentos) -->
                     <div id="table-side-top" class="grid gap-2 w-full mb-8 px-4" style="grid-template-columns: repeat(27, minmax(0, 1fr));">
@@ -253,10 +262,10 @@
             category: item.cat
         }));
 
-        let savedGuests = localStorage.getItem('wedding_guests_v3');
+        let savedGuests = localStorage.getItem('wedding_guests_v4');
         let guests = savedGuests ? JSON.parse(savedGuests) : defaultGuests;
         
-        let savedSeats = localStorage.getItem('wedding_seats_v3');
+        let savedSeats = localStorage.getItem('wedding_seats_v4');
         let seats = savedSeats ? JSON.parse(savedSeats) : Array(54).fill(null);
 
         let state = {
@@ -275,8 +284,8 @@
         };
 
         function saveState() {
-            localStorage.setItem('wedding_guests_v3', JSON.stringify(state.guests));
-            localStorage.setItem('wedding_seats_v3', JSON.stringify(state.seats));
+            localStorage.setItem('wedding_guests_v4', JSON.stringify(state.guests));
+            localStorage.setItem('wedding_seats_v4', JSON.stringify(state.seats));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -347,7 +356,7 @@
                             </div>
                         </div>
                         <div class="flex items-center space-x-1">
-                            <button onclick="openEditGuestModal('${guest.id}')" class="text-slate-300 hover:text-blue-500 p-1.5 transition" title="Editar Convidado / Bloco">
+                            <button onclick="openEditGuestModal('${guest.id}')" class="text-slate-300 hover:text-blue-500 p-1.5 transition" title="Editar Convidado">
                                 <i class="fa-solid fa-pen text-xs"></i>
                             </button>
                             <button onclick="deleteGuest('${guest.id}')" class="text-slate-300 hover:text-red-500 p-1.5 transition" title="Excluir Convidado">
@@ -498,6 +507,65 @@
             renderApp();
         }
 
+        // --- Funcionalidade de Exportar CSV ---
+        function exportToCSV() {
+            let csvContent = "\uFEFFPosicao,Convidado,Bloco\n";
+
+            // Mapear cada assento de 1 a 54
+            state.seats.forEach((guestId, index) => {
+                const seatNum = index + 1;
+                if (guestId) {
+                    const guest = state.guests.find(g => g.id === guestId);
+                    if (guest) {
+                        csvContent += `"${seatNum}","${guest.name.replace(/"/g, '""')}","${guest.category}"\n`;
+                    }
+                } else {
+                    csvContent += `"${seatNum}","(Assento Vazio)","-"\n`;
+                }
+            });
+
+            // Incluir pendentes na listagem do CSV também
+            const assignedIds = new Set(state.seats.filter(id => id !== null));
+            const unassigned = state.guests.filter(g => !assignedIds.has(g.id));
+            unassigned.forEach(guest => {
+                csvContent += `"Pendente","${guest.name.replace(/"/g, '""')}","${guest.category}"\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'mapa_assentos_casamento.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- Funcionalidade de Exportar PNG ---
+        function exportToPNG() {
+            const captureElement = document.getElementById('capture-area');
+            
+            // Notificação visual simples de carregamento
+            const originalShadow = captureElement.style.boxShadow;
+            
+            html2canvas(captureElement, {
+                scale: 2, // Alta resolução
+                useCORS: true,
+                backgroundColor: '#f8fafc'
+            }).then(canvas => {
+                const imageURL = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = imageURL;
+                link.download = 'mapa_mesa_casamento.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }).catch(err => {
+                alert('Erro ao gerar a imagem. Tente novamente.');
+                console.error(err);
+            });
+        }
+
         function openGuestModal() {
             document.getElementById('modal-title').innerText = "Adicionar Novo Convidado";
             document.getElementById('edit-guest-id').value = "";
@@ -536,14 +604,12 @@
             if (!name) return;
 
             if (editId) {
-                // Editando existente
                 const guest = state.guests.find(g => g.id === editId);
                 if (guest) {
                     guest.name = name;
                     guest.category = category;
                 }
             } else {
-                // Criando novo
                 const newGuest = {
                     id: 'g_' + Date.now(),
                     name,
@@ -559,8 +625,8 @@
 
         function resetAllData() {
             if (confirm('Deseja restaurar a lista original de convidados e limpar os assentos?')) {
-                localStorage.removeItem('wedding_guests_v3');
-                localStorage.removeItem('wedding_seats_v3');
+                localStorage.removeItem('wedding_guests_v4');
+                localStorage.removeItem('wedding_seats_v4');
                 location.reload();
             }
         }
