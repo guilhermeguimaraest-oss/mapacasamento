@@ -46,7 +46,7 @@
                 <i class="fa-solid fa-user-plus"></i>
                 <span>Adicionar Convidado</span>
             </button>
-            <button onclick="resetAllData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-sm font-medium transition border border-slate-700">
+            <button onclick="resetAllData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-sm font-medium transition border border-slate-700" title="Restaurar lista original">
                 <i class="fa-solid fa-rotate-right mr-1"></i> Restaurar Lista
             </button>
         </div>
@@ -154,16 +154,17 @@
         </main>
     </div>
 
-    <!-- Modal para Adicionar Convidado -->
+    <!-- Modal para Adicionar / Editar Convidado -->
     <div id="guest-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
             <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
-                <h3 class="font-serif font-bold text-lg">Adicionar Novo Convidado</h3>
+                <h3 id="modal-title" class="font-serif font-bold text-lg">Adicionar Novo Convidado</h3>
                 <button onclick="closeGuestModal()" class="text-slate-400 hover:text-white transition">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-            <form id="add-guest-form" onsubmit="handleCreateGuest(event)" class="p-6 space-y-4">
+            <form id="add-guest-form" onsubmit="handleSaveGuest(event)" class="p-6 space-y-4">
+                <input type="hidden" id="edit-guest-id">
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Nome Completo</label>
                     <input type="text" id="new-guest-name" required placeholder="Ex: Maria Silva" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500">
@@ -171,10 +172,11 @@
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Bloco / Categoria</label>
                     <select id="new-guest-category" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500">
-                        <option value="Convidados">Convidados</option>
-                        <option value="Família">Família</option>
-                        <option value="Amigos">Amigos</option>
+                        <option value="Família Noiva">Família Noiva</option>
+                        <option value="Família Noivo">Família Noivo</option>
                         <option value="Padrinhos">Padrinhos</option>
+                        <option value="Amigo">Amigo</option>
+                        <option value="Salão">Salão</option>
                         <option value="Destaques">Destaques</option>
                     </select>
                 </div>
@@ -186,35 +188,75 @@
         </div>
     </div>
 
-    <!-- Script de Inicialização Forçada da Lista -->
+    <!-- Script Principal -->
     <script>
-        const initialGuestNames = [
-            "Vanessa", "Elielson", "Estevão", "Kaio", "Ivete", "Natan", "Viviane", 
-            "Mariene", "Terezinha", "Laerte", "Dany", "Ailton", "Pedro", "Bruna", 
-            "Gilmar", "Liliane", "Cristiane", "Henrique", "Affonso", "Gabi", "Julia", 
-            "Diogo", "Giovana", "Maycon", "Vitória", "Tiago", "Thiago", "Maria", 
-            "Vitória - Gui", "Gaby", "Vanessa", "Joel", "Briana", "Thomaz", 
-            "Mãe Kaio - Bete", "Carol", "Nathi facul", "Samuel", "Letícia", 
-            "Gisele", "Mel", "Eduardo", "Priscila", "Maisa", "Nanci", "Luizinho", 
-            "Taina", "Nicole", "Célio", "Filipe", "Bianca", "Robertinha", "Noivo", "Noiva"
+        const rawInitialList = [
+            { name: "Noivo", cat: "Destaques" },
+            { name: "Noiva", cat: "Destaques" },
+            { name: "Vanessa", cat: "Família Noiva" },
+            { name: "Elielson", cat: "Família Noiva" },
+            { name: "Estevão", cat: "Família Noiva" },
+            { name: "Kaio", cat: "Família Noiva" },
+            { name: "Ivete", cat: "Família Noiva" },
+            { name: "Natan", cat: "Família Noiva" },
+            { name: "Viviane", cat: "Família Noiva" },
+            { name: "Mariene", cat: "Família Noiva" },
+            { name: "Terezinha", cat: "Família Noivo" },
+            { name: "Laerte", cat: "Família Noivo" },
+            { name: "Dany", cat: "Família Noivo" },
+            { name: "Ailton", cat: "Família Noivo" },
+            { name: "Pedro", cat: "Família Noivo" },
+            { name: "Bruna", cat: "Família Noivo" },
+            { name: "Gilmar", cat: "Família Noivo" },
+            { name: "Liliane", cat: "Família Noivo" },
+            { name: "Cristiane", cat: "Família Noivo" },
+            { name: "Henrique", cat: "Padrinhos" },
+            { name: "Affonso", cat: "Padrinhos" },
+            { name: "Gabi", cat: "Padrinhos" },
+            { name: "Julia", cat: "Padrinhos" },
+            { name: "Diogo", cat: "Padrinhos" },
+            { name: "Giovana", cat: "Padrinhos" },
+            { name: "Maycon", cat: "Amigo" },
+            { name: "Vitória", cat: "Padrinhos" },
+            { name: "Tiago", cat: "Padrinhos" },
+            { name: "Thiago", cat: "Padrinhos" },
+            { name: "Maria", cat: "Padrinhos" },
+            { name: "Vitória Amigo", cat: "Amigo" },
+            { name: "Gaby", cat: "Amigo" },
+            { name: "Vanessa Família Noiva", cat: "Família Noiva" },
+            { name: "Joel", cat: "Família Noiva" },
+            { name: "Briana", cat: "Família Noiva" },
+            { name: "Thomaz", cat: "Família Noiva" },
+            { name: "Bete", cat: "Família Noiva" },
+            { name: "Carol", cat: "Amigo" },
+            { name: "Nathi", cat: "Amigo" },
+            { name: "Samuel", cat: "Salão" },
+            { name: "Letícia", cat: "Salão" },
+            { name: "Gisele", cat: "Salão" },
+            { name: "Mel", cat: "Salão" },
+            { name: "Eduardo", cat: "Amigo" },
+            { name: "Priscila", cat: "Amigo" },
+            { name: "Maisa", cat: "Amigo" },
+            { name: "Nanci", cat: "Família Noivo" },
+            { name: "Luizinho", cat: "Família Noivo" },
+            { name: "Taina", cat: "Salão" },
+            { name: "Nicole", cat: "Amigo" },
+            { name: "Célio", cat: "Amigo" },
+            { name: "Filipe", cat: "Salão" },
+            { name: "Bianca", cat: "Amigo" },
+            { name: "Robertinha", cat: "Amigo" }
         ];
 
-        const defaultGuests = initialGuestNames.map((name, index) => {
-            let cat = 'Convidados';
-            if (name === 'Noivo' || name === 'Noiva') cat = 'Destaques';
-            else if (['Kaio', 'Ivete', 'Mãe Kaio - Bete', 'Estevão'].includes(name)) cat = 'Família';
-            return {
-                id: 'g_' + (index + 1),
-                name: name,
-                category: cat
-            };
-        });
+        const defaultGuests = rawInitialList.map((item, index) => ({
+            id: 'g_' + (index + 1),
+            name: item.name,
+            category: item.cat
+        }));
 
-        // Força a atualização do localStorage caso estivesse corrompido ou vazio com dados antigos
-        let savedGuests = localStorage.getItem('wedding_guests_v2');
+        let savedGuests = localStorage.getItem('wedding_guests_v3');
         let guests = savedGuests ? JSON.parse(savedGuests) : defaultGuests;
         
-        let savedSeats = localStorage.getItem('wedding_seats_v2');
+        let savedSeats = localStorage.getItem('wedding_seats_v3');
         let seats = savedSeats ? JSON.parse(savedSeats) : Array(54).fill(null);
 
         let state = {
@@ -225,15 +267,16 @@
 
         const categoryColors = {
             'Destaques': 'bg-pink-200 text-pink-900 border-pink-400 font-bold',
-            'Família': 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+            'Família Noiva': 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+            'Família Noivo': 'bg-blue-100 text-blue-800 border-blue-300 font-bold',
             'Padrinhos': 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
-            'Amigos': 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold',
-            'Convidados': 'bg-slate-100 text-slate-800 border-slate-300 font-medium'
+            'Amigo': 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold',
+            'Salão': 'bg-purple-100 text-purple-800 border-purple-300 font-bold'
         };
 
         function saveState() {
-            localStorage.setItem('wedding_guests_v2', JSON.stringify(state.guests));
-            localStorage.setItem('wedding_seats_v2', JSON.stringify(state.seats));
+            localStorage.setItem('wedding_guests_v3', JSON.stringify(state.guests));
+            localStorage.setItem('wedding_seats_v3', JSON.stringify(state.seats));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -296,16 +339,21 @@
                     <div draggable="true" 
                          ondragstart="dragGuest(event, '${guest.id}')"
                          class="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition cursor-grab active:cursor-grabbing flex items-center justify-between group">
-                        <div class="flex items-center space-x-2.5 overflow-hidden">
+                        <div class="flex items-center space-x-2.5 overflow-hidden flex-1">
                             <i class="fa-solid fa-grip-vertical text-slate-300 group-hover:text-slate-500 text-xs"></i>
-                            <div class="truncate">
+                            <div class="truncate flex-1">
                                 <p class="text-xs font-semibold text-slate-800 truncate">${guest.name}</p>
                                 <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium border ${badgeColor} mt-0.5">${guest.category}</span>
                             </div>
                         </div>
-                        <button onclick="deleteGuest('${guest.id}')" class="text-slate-300 hover:text-red-500 p-1 transition" title="Excluir Convidado">
-                            <i class="fa-solid fa-trash-can text-xs"></i>
-                        </button>
+                        <div class="flex items-center space-x-1">
+                            <button onclick="openEditGuestModal('${guest.id}')" class="text-slate-300 hover:text-blue-500 p-1.5 transition" title="Editar Convidado / Bloco">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            <button onclick="deleteGuest('${guest.id}')" class="text-slate-300 hover:text-red-500 p-1.5 transition" title="Excluir Convidado">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -354,7 +402,7 @@
                         <!-- Tag de Categoria -->
                         <span class="text-[9px] px-1.5 py-0.5 rounded border ${badgeColor} truncate w-full text-center shadow-2xs">${guest.category}</span>
                         
-                        <button onclick="removeGuestFromSeat(${index})" class="absolute -top-2 -right-2 bg-slate-800 hover:bg-red-600 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-sm">
+                        <button onclick="removeGuestFromSeat(${index})" class="absolute -top-2 -right-2 bg-slate-800 hover:bg-red-600 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-sm" title="Remover da mesa">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
@@ -451,6 +499,23 @@
         }
 
         function openGuestModal() {
+            document.getElementById('modal-title').innerText = "Adicionar Novo Convidado";
+            document.getElementById('edit-guest-id').value = "";
+            document.getElementById('new-guest-name').value = "";
+            document.getElementById('guest-modal').classList.remove('hidden');
+            document.getElementById('guest-modal').classList.add('flex');
+            document.getElementById('new-guest-name').focus();
+        }
+
+        function openEditGuestModal(guestId) {
+            const guest = state.guests.find(g => g.id === guestId);
+            if (!guest) return;
+
+            document.getElementById('modal-title').innerText = "Editar Convidado";
+            document.getElementById('edit-guest-id').value = guest.id;
+            document.getElementById('new-guest-name').value = guest.name;
+            document.getElementById('new-guest-category').value = guest.category;
+            
             document.getElementById('guest-modal').classList.remove('hidden');
             document.getElementById('guest-modal').classList.add('flex');
             document.getElementById('new-guest-name').focus();
@@ -462,20 +527,31 @@
             document.getElementById('add-guest-form').reset();
         }
 
-        function handleCreateGuest(event) {
+        function handleSaveGuest(event) {
             event.preventDefault();
+            const editId = document.getElementById('edit-guest-id').value;
             const name = document.getElementById('new-guest-name').value.trim();
             const category = document.getElementById('new-guest-category').value;
 
             if (!name) return;
 
-            const newGuest = {
-                id: 'g_' + Date.now(),
-                name,
-                category
-            };
+            if (editId) {
+                // Editando existente
+                const guest = state.guests.find(g => g.id === editId);
+                if (guest) {
+                    guest.name = name;
+                    guest.category = category;
+                }
+            } else {
+                // Criando novo
+                const newGuest = {
+                    id: 'g_' + Date.now(),
+                    name,
+                    category
+                };
+                state.guests.push(newGuest);
+            }
 
-            state.guests.push(newGuest);
             saveState();
             closeGuestModal();
             renderApp();
@@ -483,8 +559,8 @@
 
         function resetAllData() {
             if (confirm('Deseja restaurar a lista original de convidados e limpar os assentos?')) {
-                localStorage.removeItem('wedding_guests_v2');
-                localStorage.removeItem('wedding_seats_v2');
+                localStorage.removeItem('wedding_guests_v3');
+                localStorage.removeItem('wedding_seats_v3');
                 location.reload();
             }
         }
