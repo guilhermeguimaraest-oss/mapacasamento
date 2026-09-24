@@ -43,20 +43,31 @@
                 <p class="text-xs text-slate-400">Mesa Imperial Única • 54 Lugares</p>
             </div>
         </div>
-        <div class="flex items-center space-x-3">
-            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2" title="Baixar lista em CSV">
+        <div class="flex items-center space-x-2 flex-wrap justify-end">
+            <!-- Botões de Backup / Importação sem Banco de Dados -->
+            <button onclick="exportBackupJSON()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-xl text-xs font-medium transition shadow-sm flex items-center space-x-1.5" title="Salvar um arquivo de backup no computador">
+                <i class="fa-solid fa-download"></i>
+                <span>Salvar Backup</span>
+            </button>
+            <label class="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-medium transition border border-slate-700 cursor-pointer flex items-center space-x-1.5" title="Carregar um arquivo de backup salvo anteriormente">
+                <i class="fa-solid fa-upload"></i>
+                <span>Carregar Backup</span>
+                <input type="file" id="import-file" accept=".json" onchange="importBackupJSON(event)" class="hidden">
+            </label>
+            <div class="h-5 w-[1px] bg-slate-700 mx-1"></div>
+            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-medium transition shadow-sm flex items-center space-x-1.5" title="Baixar lista em CSV">
                 <i class="fa-solid fa-file-csv"></i>
-                <span>Exportar CSV</span>
+                <span>CSV</span>
             </button>
-            <button onclick="exportToPNG()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2" title="Salvar imagem do mapa">
+            <button onclick="exportToPNG()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-xs font-medium transition shadow-sm flex items-center space-x-1.5" title="Salvar imagem do mapa">
                 <i class="fa-solid fa-image"></i>
-                <span>Exportar PNG</span>
+                <span>PNG</span>
             </button>
-            <button onclick="openGuestModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2">
+            <button onclick="openGuestModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-3.5 py-2 rounded-xl text-xs font-medium transition shadow-sm flex items-center space-x-1.5">
                 <i class="fa-solid fa-user-plus"></i>
                 <span>Adicionar</span>
             </button>
-            <button onclick="resetAllData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-sm font-medium transition border border-slate-700" title="Restaurar lista original">
+            <button onclick="resetAllData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-2 rounded-xl text-xs font-medium transition border border-slate-700" title="Restaurar lista original">
                 <i class="fa-solid fa-rotate-right"></i>
             </button>
         </div>
@@ -116,7 +127,7 @@
                     </div>
                 </div>
                 <div class="text-xs text-slate-500 italic">
-                    <i class="fa-solid fa-circle-info mr-1 text-pink-600"></i> Clique em qualquer cadeira para alocar um convidado por seleção
+                    <i class="fa-solid fa-circle-info mr-1 text-pink-600"></i> Suas alterações são salvas automaticamente no navegador
                 </div>
             </div>
 
@@ -209,7 +220,6 @@
             <div class="p-6 space-y-4">
                 <input type="hidden" id="selected-seat-index">
                 
-                <!-- Se a cadeira estiver ocupada, mostra opção de remover -->
                 <div id="seat-current-occupant-box" class="hidden bg-pink-50 border border-pink-200 p-3 rounded-xl flex items-center justify-between">
                     <div>
                         <p class="text-xs text-slate-500">Ocupante atual:</p>
@@ -300,10 +310,10 @@
             category: item.cat
         }));
 
-        let savedGuests = localStorage.getItem('wedding_guests_v5');
+        let savedGuests = localStorage.getItem('wedding_guests_v6');
         let guests = savedGuests ? JSON.parse(savedGuests) : defaultGuests;
         
-        let savedSeats = localStorage.getItem('wedding_seats_v5');
+        let savedSeats = localStorage.getItem('wedding_seats_v6');
         let seats = savedSeats ? JSON.parse(savedSeats) : Array(54).fill(null);
 
         let state = {
@@ -322,8 +332,8 @@
         };
 
         function saveState() {
-            localStorage.setItem('wedding_guests_v5', JSON.stringify(state.guests));
-            localStorage.setItem('wedding_seats_v5', JSON.stringify(state.seats));
+            localStorage.setItem('wedding_guests_v6', JSON.stringify(state.guests));
+            localStorage.setItem('wedding_seats_v6', JSON.stringify(state.seats));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -563,7 +573,6 @@
                 occupantBox.classList.add('hidden');
             }
 
-            // Preencher select com convidados não alocados
             const assignedIds = new Set(state.seats.filter(id => id !== null));
             const unassigned = state.guests.filter(g => !assignedIds.has(g.id));
 
@@ -605,6 +614,50 @@
             saveState();
             closeSeatSelectModal();
             renderApp();
+        }
+
+        // --- Backup e Restauração via JSON (Sem Banco de Dados) ---
+        function exportBackupJSON() {
+            const backupData = {
+                version: "6.0",
+                timestamp: new Date().toISOString(),
+                guests: state.guests,
+                seats: state.seats
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `backup_mapa_casamento_${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importBackupJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = JSON.parse(e.target.result);
+                    if (content.guests && content.seats) {
+                        state.guests = content.guests;
+                        state.seats = content.seats;
+                        saveState();
+                        renderApp();
+                        alert('Backup carregado com sucesso!');
+                    } else {
+                        alert('Arquivo de backup inválido.');
+                    }
+                } catch (err) {
+                    alert('Erro ao ler o arquivo JSON.');
+                    console.error(err);
+                }
+                event.target.value = ''; // Reseta o input
+            };
+            reader.readAsText(file);
         }
 
         // --- Exportar CSV ---
@@ -720,8 +773,8 @@
 
         function resetAllData() {
             if (confirm('Deseja restaurar a lista original de convidados e limpar os assentos?')) {
-                localStorage.removeItem('wedding_guests_v5');
-                localStorage.removeItem('wedding_seats_v5');
+                localStorage.removeItem('wedding_guests_v6');
+                localStorage.removeItem('wedding_seats_v6');
                 location.reload();
             }
         }
