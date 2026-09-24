@@ -96,7 +96,7 @@
             </div>
             
             <div class="p-3 bg-slate-100 border-t border-slate-200 text-center text-xs text-slate-500">
-                Arraste o convidado para a mesa ou solte aqui para remover.
+                Arraste ou clique na cadeira para alocar.
             </div>
         </aside>
 
@@ -116,7 +116,7 @@
                     </div>
                 </div>
                 <div class="text-xs text-slate-500 italic">
-                    <i class="fa-solid fa-circle-info mr-1 text-pink-600"></i> Mesa Única Imperial (54 lugares distribuídos simetricamente)
+                    <i class="fa-solid fa-circle-info mr-1 text-pink-600"></i> Clique em qualquer cadeira para alocar um convidado por seleção
                 </div>
             </div>
 
@@ -197,6 +197,44 @@
         </div>
     </div>
 
+    <!-- Modal para Selecionar Convidado ao Clicar na Cadeira -->
+    <div id="seat-select-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                <h3 id="seat-modal-title" class="font-serif font-bold text-lg">Selecionar para Assento</h3>
+                <button onclick="closeSeatSelectModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="selected-seat-index">
+                
+                <!-- Se a cadeira estiver ocupada, mostra opção de remover -->
+                <div id="seat-current-occupant-box" class="hidden bg-pink-50 border border-pink-200 p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500">Ocupante atual:</p>
+                        <p id="seat-current-name" class="text-sm font-bold text-slate-800"></p>
+                    </div>
+                    <button onclick="removeGuestFromActiveSeat()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">
+                        Remover da Cadeira
+                    </button>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Escolher Convidado Pendente</label>
+                    <select id="seat-guest-dropdown" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500">
+                        <!-- Preenchido via JS -->
+                    </select>
+                </div>
+
+                <div class="pt-2 flex space-x-3">
+                    <button type="button" onclick="closeSeatSelectModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-medium transition">Cancelar</button>
+                    <button type="button" onclick="confirmSeatSelection()" class="flex-1 bg-pink-600 hover:bg-pink-700 text-white py-2.5 rounded-xl text-sm font-medium transition shadow-sm">Alocar Convidado</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Script Principal -->
     <script>
         const rawInitialList = [
@@ -262,10 +300,10 @@
             category: item.cat
         }));
 
-        let savedGuests = localStorage.getItem('wedding_guests_v4');
+        let savedGuests = localStorage.getItem('wedding_guests_v5');
         let guests = savedGuests ? JSON.parse(savedGuests) : defaultGuests;
         
-        let savedSeats = localStorage.getItem('wedding_seats_v4');
+        let savedSeats = localStorage.getItem('wedding_seats_v5');
         let seats = savedSeats ? JSON.parse(savedSeats) : Array(54).fill(null);
 
         let state = {
@@ -284,8 +322,8 @@
         };
 
         function saveState() {
-            localStorage.setItem('wedding_guests_v4', JSON.stringify(state.guests));
-            localStorage.setItem('wedding_seats_v4', JSON.stringify(state.seats));
+            localStorage.setItem('wedding_guests_v5', JSON.stringify(state.guests));
+            localStorage.setItem('wedding_seats_v5', JSON.stringify(state.seats));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -398,7 +436,8 @@
                          ondragover="allowDrop(event)"
                          ondragleave="removeDropStyle(event)"
                          ondrop="dropToSeat(event, ${index})"
-                         class="bg-white border-2 border-pink-400 rounded-lg p-1.5 shadow-md flex flex-col justify-between items-center relative group cursor-grab active:cursor-grabbing h-32 transition hover:shadow-lg">
+                         onclick="openSeatSelectModal(${index})"
+                         class="bg-white border-2 border-pink-400 rounded-lg p-1.5 shadow-md flex flex-col justify-between items-center relative group cursor-pointer h-32 transition hover:shadow-lg hover:border-pink-500">
                         
                         <!-- Número do Assento -->
                         <span class="bg-pink-600 text-white text-[10px] px-2 py-0.5 rounded-full font-extrabold shadow-xs">${index + 1}</span>
@@ -411,7 +450,7 @@
                         <!-- Tag de Categoria -->
                         <span class="text-[9px] px-1.5 py-0.5 rounded border ${badgeColor} truncate w-full text-center shadow-2xs">${guest.category}</span>
                         
-                        <button onclick="removeGuestFromSeat(${index})" class="absolute -top-2 -right-2 bg-slate-800 hover:bg-red-600 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-sm" title="Remover da mesa">
+                        <button onclick="event.stopPropagation(); removeGuestFromSeat(${index})" class="absolute -top-2 -right-2 bg-slate-800 hover:bg-red-600 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-sm" title="Remover da mesa">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
@@ -421,7 +460,8 @@
                     <div ondragover="allowDrop(event)"
                          ondragleave="removeDropStyle(event)"
                          ondrop="dropToSeat(event, ${index})"
-                         class="bg-white/90 border-2 border-dashed border-slate-300 rounded-lg p-1.5 flex flex-col justify-between items-center relative transition hover:border-pink-400 hover:bg-pink-50/40 h-32 group">
+                         onclick="openSeatSelectModal(${index})"
+                         class="bg-white/90 border-2 border-dashed border-slate-300 rounded-lg p-1.5 flex flex-col justify-between items-center relative transition hover:border-pink-400 hover:bg-pink-50/40 h-32 group cursor-pointer">
                         
                         <span class="bg-slate-400 group-hover:bg-pink-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold transition">${index + 1}</span>
                         
@@ -507,11 +547,70 @@
             renderApp();
         }
 
-        // --- Funcionalidade de Exportar CSV ---
+        // --- Funcionalidade do Modal de Clique na Cadeira ---
+        function openSeatSelectModal(index) {
+            document.getElementById('selected-seat-index').value = index;
+            document.getElementById('seat-modal-title').innerText = `Assento ${index + 1}`;
+
+            const guestId = state.seats[index];
+            const occupantBox = document.getElementById('seat-current-occupant-box');
+            
+            if (guestId) {
+                const guest = state.guests.find(g => g.id === guestId);
+                document.getElementById('seat-current-name').innerText = guest ? `${guest.name} (${guest.category})` : '';
+                occupantBox.classList.remove('hidden');
+            } else {
+                occupantBox.classList.add('hidden');
+            }
+
+            // Preencher select com convidados não alocados
+            const assignedIds = new Set(state.seats.filter(id => id !== null));
+            const unassigned = state.guests.filter(g => !assignedIds.has(g.id));
+
+            const dropdown = document.getElementById('seat-guest-dropdown');
+            if (unassigned.length === 0) {
+                dropdown.innerHTML = `<option value="">Nenhum convidado pendente disponível</option>`;
+            } else {
+                dropdown.innerHTML = `<option value="">Selecione um convidado...</option>` + 
+                    unassigned.map(g => `<option value="${g.id}">${g.name} — [${g.category}]</option>`).join('');
+            }
+
+            document.getElementById('seat-select-modal').classList.remove('hidden');
+            document.getElementById('seat-select-modal').classList.add('flex');
+        }
+
+        function closeSeatSelectModal() {
+            document.getElementById('seat-select-modal').classList.remove('flex');
+            document.getElementById('seat-select-modal').classList.add('hidden');
+        }
+
+        function confirmSeatSelection() {
+            const index = parseInt(document.getElementById('selected-seat-index').value);
+            const guestId = document.getElementById('seat-guest-dropdown').value;
+
+            if (!guestId) {
+                alert('Selecione um convidado válido.');
+                return;
+            }
+
+            state.seats[index] = guestId;
+            saveState();
+            closeSeatSelectModal();
+            renderApp();
+        }
+
+        function removeGuestFromActiveSeat() {
+            const index = parseInt(document.getElementById('selected-seat-index').value);
+            state.seats[index] = null;
+            saveState();
+            closeSeatSelectModal();
+            renderApp();
+        }
+
+        // --- Exportar CSV ---
         function exportToCSV() {
             let csvContent = "\uFEFFPosicao,Convidado,Bloco\n";
 
-            // Mapear cada assento de 1 a 54
             state.seats.forEach((guestId, index) => {
                 const seatNum = index + 1;
                 if (guestId) {
@@ -524,7 +623,6 @@
                 }
             });
 
-            // Incluir pendentes na listagem do CSV também
             const assignedIds = new Set(state.seats.filter(id => id !== null));
             const unassigned = state.guests.filter(g => !assignedIds.has(g.id));
             unassigned.forEach(guest => {
@@ -541,15 +639,12 @@
             document.body.removeChild(link);
         }
 
-        // --- Funcionalidade de Exportar PNG ---
+        // --- Exportar PNG ---
         function exportToPNG() {
             const captureElement = document.getElementById('capture-area');
             
-            // Notificação visual simples de carregamento
-            const originalShadow = captureElement.style.boxShadow;
-            
             html2canvas(captureElement, {
-                scale: 2, // Alta resolução
+                scale: 2,
                 useCORS: true,
                 backgroundColor: '#f8fafc'
             }).then(canvas => {
@@ -625,8 +720,8 @@
 
         function resetAllData() {
             if (confirm('Deseja restaurar a lista original de convidados e limpar os assentos?')) {
-                localStorage.removeItem('wedding_guests_v4');
-                localStorage.removeItem('wedding_seats_v4');
+                localStorage.removeItem('wedding_guests_v5');
+                localStorage.removeItem('wedding_seats_v5');
                 location.reload();
             }
         }
