@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Assentos - Casamento</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .seat-drag-over {
+            background-color: #fbcfe8 !important;
+            border-color: #ec4899 !important;
+            transform: scale(1.03);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Cabeçalho -->
+    <header class="bg-slate-900 text-white shadow-md px-6 py-4 flex justify-between items-center z-10 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-pink-600 text-white p-2.5 rounded-xl shadow-inner flex items-center justify-center">
+                <i class="fa-solid fa-ring text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-serif font-bold tracking-wide">Mapa de Assentos do Casamento</h1>
+                <p class="text-xs text-slate-400">Mesa Imperial Única • 54 Lugares</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button onclick="openGuestModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm flex items-center space-x-2">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>Adicionar Convidado</span>
+            </button>
+            <button onclick="resetAllData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-sm font-medium transition border border-slate-700">
+                <i class="fa-solid fa-rotate-right mr-1"></i> Restaurar Lista
+            </button>
+        </div>
+    </header>
+
+    <!-- Área Principal -->
+    <div class="flex flex-1 overflow-hidden">
+        
+        <!-- Barra Lateral: Lista de Convidados e Filtros -->
+        <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10">
+            <div class="p-4 border-b border-slate-100">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold text-slate-700 flex items-center">
+                        <i class="fa-solid fa-users text-pink-600 mr-2"></i> Convidados Pendentes
+                    </h2>
+                    <span id="pending-count" class="bg-pink-100 text-pink-700 text-xs px-2.5 py-1 rounded-full font-bold">0</span>
+                </div>
+                <!-- Barra de Pesquisa e Filtro de Categoria -->
+                <div class="space-y-2">
+                    <div class="relative">
+                        <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                        <input type="text" id="search-guest" placeholder="Buscar convidado..." oninput="renderApp()" class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500">
+                    </div>
+                    <div class="flex gap-1 overflow-x-auto pb-1 custom-scrollbar" id="category-filters">
+                        <!-- Filtros injetados via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Convidados Não Alocados (Drag Source) -->
+            <div id="unassigned-list" 
+                 ondragover="allowDrop(event)" 
+                 ondragleave="removeDropStyle(event)"
+                 ondrop="dropToUnassigned(event)" 
+                 class="flex-1 overflow-y-auto p-4 space-y-2.5 custom-scrollbar bg-slate-50/50">
+                <!-- Preenchido via JS -->
+            </div>
+            
+            <div class="p-3 bg-slate-100 border-t border-slate-200 text-center text-xs text-slate-500">
+                Arraste o convidado para a mesa ou solte aqui para remover.
+            </div>
+        </aside>
+
+        <!-- Área Central: Visualização da Mesa Única Imperial -->
+        <main class="flex-1 bg-slate-100 overflow-auto flex flex-col relative custom-scrollbar">
+            
+            <!-- Barra de Estatísticas da Mesa -->
+            <div class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shrink-0 shadow-xs">
+                <div class="flex items-center space-x-6 text-sm">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-3 h-3 rounded-full bg-pink-600"></span>
+                        <span class="text-slate-600 font-medium">Ocupados: <strong id="stat-occupied" class="text-slate-900">0</strong> / 54</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-3 h-3 rounded-full bg-slate-300"></span>
+                        <span class="text-slate-600 font-medium">Disponíveis: <strong id="stat-available" class="text-slate-900">54</strong></span>
+                    </div>
+                </div>
+                <div class="text-xs text-slate-500 italic">
+                    <i class="fa-solid fa-circle-info mr-1 text-pink-600"></i> Mesa Única Imperial (54 lugares distribuídos simetricamente)
+                </div>
+            </div>
+
+            <!-- Canvas da Mesa Imperial com largura ampla -->
+            <div class="p-12 flex-1 flex items-center justify-center min-w-[3400px]">
+                
+                <!-- Container Principal da Mesa -->
+                <div class="relative flex flex-col items-center my-auto w-full max-w-[1700px]">
+                    
+                    <!-- Lado Superior da Mesa (27 assentos) -->
+                    <div id="table-side-top" class="grid gap-2 w-full mb-8 px-4" style="grid-template-columns: repeat(27, minmax(0, 1fr));">
+                        <!-- Inserido via JS -->
+                    </div>
+
+                    <!-- Estrutura Física da Mesa Central Única -->
+                    <div class="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-900 rounded-2xl shadow-xl h-28 border-4 border-amber-300/60 relative flex items-center justify-between px-8 overflow-hidden z-0">
+                        <!-- Decoração Central -->
+                        <div class="absolute inset-x-0 h-12 flex items-center justify-around opacity-90 px-10">
+                            <div class="w-3 h-3 rounded-full bg-yellow-300 shadow-sm animate-pulse"></div>
+                            <div class="w-16 h-4 bg-white/20 rounded-full"></div>
+                            <div class="w-3 h-3 rounded-full bg-pink-400 shadow-sm"></div>
+                            <div class="w-16 h-4 bg-white/20 rounded-full"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-300 shadow-sm"></div>
+                            <div class="w-16 h-4 bg-white/20 rounded-full"></div>
+                            <div class="w-3 h-3 rounded-full bg-pink-400 shadow-sm"></div>
+                            <div class="w-16 h-4 bg-white/20 rounded-full"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-300 shadow-sm"></div>
+                            <div class="w-16 h-4 bg-white/20 rounded-full"></div>
+                            <div class="w-3 h-3 rounded-full bg-pink-400 shadow-sm"></div>
+                        </div>
+                        <span class="text-amber-200/80 font-serif font-semibold tracking-widest text-base uppercase mx-auto z-10 bg-indigo-950/80 px-8 py-2 rounded-full border border-amber-300/30 shadow-inner">
+                            Mesa Principal do Casamento
+                        </span>
+                    </div>
+
+                    <!-- Lado Inferior da Mesa (27 assentos) -->
+                    <div id="table-side-bottom" class="grid gap-2 w-full mt-8 px-4" style="grid-template-columns: repeat(27, minmax(0, 1fr));">
+                        <!-- Inserido via JS -->
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal para Adicionar Convidado -->
+    <div id="guest-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="font-serif font-bold text-lg">Adicionar Novo Convidado</h3>
+                <button onclick="closeGuestModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="add-guest-form" onsubmit="handleCreateGuest(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Nome Completo</label>
+                    <input type="text" id="new-guest-name" required placeholder="Ex: Maria Silva" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Bloco / Categoria</label>
+                    <select id="new-guest-category" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500">
+                        <option value="Convidados">Convidados</option>
+                        <option value="Família">Família</option>
+                        <option value="Amigos">Amigos</option>
+                        <option value="Padrinhos">Padrinhos</option>
+                        <option value="Destaques">Destaques</option>
+                    </select>
+                </div>
+                <div class="pt-2 flex space-x-3">
+                    <button type="button" onclick="closeGuestModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-medium transition">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-pink-600 hover:bg-pink-700 text-white py-2.5 rounded-xl text-sm font-medium transition shadow-sm">Salvar Convidado</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Script de Inicialização Forçada da Lista -->
+    <script>
+        const initialGuestNames = [
+            "Vanessa", "Elielson", "Estevão", "Kaio", "Ivete", "Natan", "Viviane", 
+            "Mariene", "Terezinha", "Laerte", "Dany", "Ailton", "Pedro", "Bruna", 
+            "Gilmar", "Liliane", "Cristiane", "Henrique", "Affonso", "Gabi", "Julia", 
+            "Diogo", "Giovana", "Maycon", "Vitória", "Tiago", "Thiago", "Maria", 
+            "Vitória - Gui", "Gaby", "Vanessa", "Joel", "Briana", "Thomaz", 
+            "Mãe Kaio - Bete", "Carol", "Nathi facul", "Samuel", "Letícia", 
+            "Gisele", "Mel", "Eduardo", "Priscila", "Maisa", "Nanci", "Luizinho", 
+            "Taina", "Nicole", "Célio", "Filipe", "Bianca", "Robertinha", "Noivo", "Noiva"
+        ];
+
+        const defaultGuests = initialGuestNames.map((name, index) => {
+            let cat = 'Convidados';
+            if (name === 'Noivo' || name === 'Noiva') cat = 'Destaques';
+            else if (['Kaio', 'Ivete', 'Mãe Kaio - Bete', 'Estevão'].includes(name)) cat = 'Família';
+            return {
+                id: 'g_' + (index + 1),
+                name: name,
+                category: cat
+            };
+        });
+
+        // Força a atualização do localStorage caso estivesse corrompido ou vazio com dados antigos
+        let savedGuests = localStorage.getItem('wedding_guests_v2');
+        let guests = savedGuests ? JSON.parse(savedGuests) : defaultGuests;
+        
+        let savedSeats = localStorage.getItem('wedding_seats_v2');
+        let seats = savedSeats ? JSON.parse(savedSeats) : Array(54).fill(null);
+
+        let state = {
+            guests: guests,
+            seats: seats,
+            activeCategory: 'Todos'
+        };
+
+        const categoryColors = {
+            'Destaques': 'bg-pink-200 text-pink-900 border-pink-400 font-bold',
+            'Família': 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+            'Padrinhos': 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+            'Amigos': 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold',
+            'Convidados': 'bg-slate-100 text-slate-800 border-slate-300 font-medium'
+        };
+
+        function saveState() {
+            localStorage.setItem('wedding_guests_v2', JSON.stringify(state.guests));
+            localStorage.setItem('wedding_seats_v2', JSON.stringify(state.seats));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderApp();
+        });
+
+        function renderApp() {
+            renderCategoryFilters();
+            renderUnassignedGuests();
+            renderTableSeats();
+            updateStats();
+        }
+
+        function renderCategoryFilters() {
+            const categories = ['Todos', ...new Set(state.guests.map(g => g.category))];
+            const container = document.getElementById('category-filters');
+            
+            container.innerHTML = categories.map(cat => `
+                <button onclick="setCategory('${cat}')" class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition ${state.activeCategory === cat ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                    ${cat}
+                </button>
+            `).join('');
+        }
+
+        function setCategory(cat) {
+            state.activeCategory = cat;
+            renderApp();
+        }
+
+        function renderUnassignedGuests() {
+            const container = document.getElementById('unassigned-list');
+            const searchTerm = document.getElementById('search-guest').value.toLowerCase();
+            
+            const assignedIds = new Set(state.seats.filter(id => id !== null));
+            let unassigned = state.guests.filter(g => !assignedIds.has(g.id));
+
+            if (state.activeCategory !== 'Todos') {
+                unassigned = unassigned.filter(g => g.category === state.activeCategory);
+            }
+
+            if (searchTerm) {
+                unassigned = unassigned.filter(g => g.name.toLowerCase().includes(searchTerm));
+            }
+
+            document.getElementById('pending-count').innerText = unassigned.length;
+
+            if (unassigned.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                        <i class="fa-solid fa-mug-hot text-2xl mb-2 text-slate-300"></i>
+                        <p class="text-xs">Nenhum convidado pendente encontrado.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = unassigned.map(guest => {
+                const badgeColor = categoryColors[guest.category] || 'bg-slate-100 text-slate-800 border-slate-200';
+                return `
+                    <div draggable="true" 
+                         ondragstart="dragGuest(event, '${guest.id}')"
+                         class="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition cursor-grab active:cursor-grabbing flex items-center justify-between group">
+                        <div class="flex items-center space-x-2.5 overflow-hidden">
+                            <i class="fa-solid fa-grip-vertical text-slate-300 group-hover:text-slate-500 text-xs"></i>
+                            <div class="truncate">
+                                <p class="text-xs font-semibold text-slate-800 truncate">${guest.name}</p>
+                                <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium border ${badgeColor} mt-0.5">${guest.category}</span>
+                            </div>
+                        </div>
+                        <button onclick="deleteGuest('${guest.id}')" class="text-slate-300 hover:text-red-500 p-1 transition" title="Excluir Convidado">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTableSeats() {
+            const topContainer = document.getElementById('table-side-top');
+            const bottomContainer = document.getElementById('table-side-bottom');
+
+            let topHtml = '';
+            let bottomHtml = '';
+
+            for (let i = 0; i < 27; i++) {
+                topHtml += createSeatHTML(i);
+            }
+            for (let i = 27; i < 54; i++) {
+                bottomHtml += createSeatHTML(i);
+            }
+
+            topContainer.innerHTML = topHtml;
+            bottomContainer.innerHTML = bottomHtml;
+        }
+
+        function createSeatHTML(index) {
+            const guestId = state.seats[index];
+            const guest = guestId ? state.guests.find(g => g.id === guestId) : null;
+
+            if (guest) {
+                const badgeColor = categoryColors[guest.category] || 'bg-slate-100 text-slate-800 border-slate-200';
+                return `
+                    <div draggable="true"
+                         ondragstart="dragGuestFromSeat(event, ${index}, '${guest.id}')"
+                         ondragover="allowDrop(event)"
+                         ondragleave="removeDropStyle(event)"
+                         ondrop="dropToSeat(event, ${index})"
+                         class="bg-white border-2 border-pink-400 rounded-lg p-1.5 shadow-md flex flex-col justify-between items-center relative group cursor-grab active:cursor-grabbing h-32 transition hover:shadow-lg">
+                        
+                        <!-- Número do Assento -->
+                        <span class="bg-pink-600 text-white text-[10px] px-2 py-0.5 rounded-full font-extrabold shadow-xs">${index + 1}</span>
+                        
+                        <!-- Nome Completo na Vertical Inteligente -->
+                        <div class="flex-1 flex items-center justify-center my-1 w-full overflow-hidden px-1">
+                            <span class="text-xs font-bold text-slate-900 tracking-tight text-center [writing-mode:vertical-rl] [transform:rotate(180deg)] max-h-20 select-none" title="${guest.name}">${guest.name}</span>
+                        </div>
+                        
+                        <!-- Tag de Categoria -->
+                        <span class="text-[9px] px-1.5 py-0.5 rounded border ${badgeColor} truncate w-full text-center shadow-2xs">${guest.category}</span>
+                        
+                        <button onclick="removeGuestFromSeat(${index})" class="absolute -top-2 -right-2 bg-slate-800 hover:bg-red-600 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-sm">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div ondragover="allowDrop(event)"
+                         ondragleave="removeDropStyle(event)"
+                         ondrop="dropToSeat(event, ${index})"
+                         class="bg-white/90 border-2 border-dashed border-slate-300 rounded-lg p-1.5 flex flex-col justify-between items-center relative transition hover:border-pink-400 hover:bg-pink-50/40 h-32 group">
+                        
+                        <span class="bg-slate-400 group-hover:bg-pink-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold transition">${index + 1}</span>
+                        
+                        <div class="flex flex-col items-center justify-center my-auto">
+                            <i class="fa-solid fa-chair text-slate-300 group-hover:text-pink-400 text-sm mb-1 transition"></i>
+                            <span class="text-[9px] font-medium text-slate-400 uppercase tracking-wider">Livre</span>
+                        </div>
+                        
+                        <div class="h-4"></div>
+                    </div>
+                `;
+            }
+        }
+
+        function updateStats() {
+            const occupied = state.seats.filter(id => id !== null).length;
+            const available = 54 - occupied;
+            document.getElementById('stat-occupied').innerText = occupied;
+            document.getElementById('stat-available').innerText = available;
+        }
+
+        let draggedData = {};
+
+        function dragGuest(event, guestId) {
+            draggedData = { type: 'unassigned', guestId };
+            event.dataTransfer.setData('text/plain', guestId);
+        }
+
+        function dragGuestFromSeat(event, seatIndex, guestId) {
+            draggedData = { type: 'seat', seatIndex, guestId };
+            event.dataTransfer.setData('text/plain', guestId);
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('seat-drag-over');
+        }
+
+        function removeDropStyle(event) {
+            event.currentTarget.classList.remove('seat-drag-over');
+        }
+
+        function dropToSeat(event, targetIndex) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('seat-drag-over');
+
+            const guestId = draggedData.guestId;
+            if (!guestId) return;
+
+            if (draggedData.type === 'seat') {
+                state.seats[draggedData.seatIndex] = null;
+            }
+
+            state.seats[targetIndex] = guestId;
+
+            saveState();
+            renderApp();
+            draggedData = {};
+        }
+
+        function dropToUnassigned(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('seat-drag-over');
+
+            if (draggedData.type === 'seat') {
+                state.seats[draggedData.seatIndex] = null;
+                saveState();
+                renderApp();
+            }
+            draggedData = {};
+        }
+
+        function removeGuestFromSeat(index) {
+            state.seats[index] = null;
+            saveState();
+            renderApp();
+        }
+
+        function deleteGuest(guestId) {
+            state.guests = state.guests.filter(g => g.id !== guestId);
+            state.seats = state.seats.map(id => id === guestId ? null : id);
+            saveState();
+            renderApp();
+        }
+
+        function openGuestModal() {
+            document.getElementById('guest-modal').classList.remove('hidden');
+            document.getElementById('guest-modal').classList.add('flex');
+            document.getElementById('new-guest-name').focus();
+        }
+
+        function closeGuestModal() {
+            document.getElementById('guest-modal').classList.remove('flex');
+            document.getElementById('guest-modal').classList.add('hidden');
+            document.getElementById('add-guest-form').reset();
+        }
+
+        function handleCreateGuest(event) {
+            event.preventDefault();
+            const name = document.getElementById('new-guest-name').value.trim();
+            const category = document.getElementById('new-guest-category').value;
+
+            if (!name) return;
+
+            const newGuest = {
+                id: 'g_' + Date.now(),
+                name,
+                category
+            };
+
+            state.guests.push(newGuest);
+            saveState();
+            closeGuestModal();
+            renderApp();
+        }
+
+        function resetAllData() {
+            if (confirm('Deseja restaurar a lista original de convidados e limpar os assentos?')) {
+                localStorage.removeItem('wedding_guests_v2');
+                localStorage.removeItem('wedding_seats_v2');
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
